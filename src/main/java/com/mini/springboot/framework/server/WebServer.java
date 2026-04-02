@@ -1,16 +1,38 @@
 package com.mini.springboot.framework.server;
 
+import com.mini.springboot.framework.annotations.RequestParam;
 import com.mini.springboot.framework.context.ApplicationContext;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 public class WebServer {
     private final int port;
     private final ApplicationContext context;
+
+
+    private Map<String, String> parseQueryParams(String query){
+        Map<String, String> queryParams = new HashMap<>();
+        if(query == null || query.isEmpty()) return queryParams;
+
+        String[] pairs = query.split("&");
+        for(String pair : pairs){
+            String[] keyValue = pair.split("=");
+            if(keyValue.length == 2){
+                String decoded  = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+                queryParams.put(keyValue[0], decoded);
+            }
+        }
+        return queryParams;
+    }
 
     public WebServer(int port, ApplicationContext context){
         this.port = port;
@@ -47,8 +69,20 @@ public class WebServer {
 
             if(targetMethod != null){
                 try{
+                    Parameter[] parameters = targetMethod.getParameters();
+                    Object[] args = new Object[parameters.length];
+                    Map<String, String> queryParams = parseQueryParams(exchange.getRequestURI().getQuery());
+                    for(int i = 0; i < parameters.length; i++){
+                        if(parameters[i].isAnnotationPresent(RequestParam.class)){
+                            RequestParam ann = parameters[i].getAnnotation(RequestParam.class);
+                            String key = ann.value();
+                            args[i] = queryParams.get(key);
+                        } else{
+                            args[i] = null;
+                        }
+                    }
                     Object controller = context.getBeanInstance(targetMethod.getDeclaringClass());
-                    String res = (String) targetMethod.invoke(controller);
+                    String res = (String) targetMethod.invoke(controller, args);
 
                     exchange.sendResponseHeaders(200, res.length());
                     exchange.getResponseBody().write(res.getBytes());

@@ -60,6 +60,12 @@ public class ApplicationContext {
                         }catch(IllegalAccessException e){
                             e.printStackTrace();
                         }
+                    }else{
+                        throw new RuntimeException("ERROR: Context Initialization Failed. " +
+                                "Bean of type [" + field.getDeclaringClass().getSimpleName() +"] " +
+                                "requires a bean of type[" + fieldType.getSimpleName() + "] " +
+                                "that could not be found."
+                        );
                     }
                 }
             }
