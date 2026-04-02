@@ -1,8 +1,11 @@
 package com.mini.springboot.framework.context;
 
+import com.mini.springboot.framework.annotations.Autowired;
 import com.mini.springboot.framework.annotations.GetMapping;
 import com.mini.springboot.framework.annotations.RestController;
+import com.mini.springboot.framework.annotations.Service;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +33,7 @@ public class ApplicationContext {
         List<Class<?>> candidates = scanner.scan(rootPackage);
 
         for(Class<?> clas : candidates){
-            if(clas.isAnnotationPresent(RestController.class)){
+            if(clas.isAnnotationPresent(RestController.class) || clas.isAnnotationPresent(Service.class)){
                 try{
                     Object instance = clas.getDeclaredConstructor().newInstance();
                     beanMap.put(clas, instance);
@@ -39,6 +42,25 @@ public class ApplicationContext {
                 }
                 catch (Exception e){
                     e.printStackTrace();
+                }
+            }
+        }
+
+        for(Object bean : beanMap.values()){
+            for(Field field : bean.getClass().getDeclaredFields()){
+                if(field.isAnnotationPresent(Autowired.class)){
+                    Class<?> fieldType = field.getType();
+                    Object dependency = beanMap.get(fieldType);
+
+                    if(dependency != null){
+                        try{
+                            field.setAccessible(true);
+                            field.set(bean, dependency);
+                            System.out.println("Injected " + fieldType.getSimpleName() + " into " + bean.getClass().getSimpleName());
+                        }catch(IllegalAccessException e){
+                            e.printStackTrace();
+                        }
+                    }
                 }
             }
         }

@@ -1,0 +1,10 @@
+package com.mini.springboot.app;
+
+import com.mini.springboot.framework.annotations.Service;
+
+@Service
+public class GreetingService {
+    public String getGreeting(){
+        return "Hello from service";
+    }
+}
