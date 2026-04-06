@@ -1,9 +1,8 @@
 package com.mini.springboot.framework.context;
 
-import com.mini.springboot.framework.annotations.Autowired;
-import com.mini.springboot.framework.annotations.GetMapping;
-import com.mini.springboot.framework.annotations.RestController;
-import com.mini.springboot.framework.annotations.Service;
+import com.mini.springboot.framework.annotations.*;
+import com.mini.springboot.framework.utils.MatchResult;
+import com.mini.springboot.framework.utils.TrieNode;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -12,7 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 public class ApplicationContext {
-    private Map<String, Method> routeMap = new HashMap<>();
+
+    private final TrieNode root = new TrieNode();
+
     private Map<Class<?>, Object> beanMap = new HashMap<>();
 
     private final BeanScanner scanner = new BeanScanner();
@@ -20,9 +21,8 @@ public class ApplicationContext {
     public void init(String packageName){
 
     }
-
-    public Method getMethodForRoute(String path){
-        return routeMap.get(path);
+    public MatchResult getMethodForRoute(String path){
+        return search(path);
     }
 
     public Object getBeanInstance(Class<?> clas){
@@ -72,12 +72,66 @@ public class ApplicationContext {
         }
     }
 
+    public void insert(String path, Method method){
+        String[] segments = path.split("/");
+        TrieNode current = root;
+
+        for(String segment: segments){
+            if(segment.isEmpty()) continue;
+            if(segment.startsWith("{") && segment.endsWith("}")){
+                String varName = segment.substring(1, segment.length() - 1);
+
+                if(current.getWildcardChild() == null){
+                    current.setWildcard(varName, new TrieNode());
+                }
+                current = current.getWildcardChild();
+            }else{
+                current = current.getChildren()
+                        .computeIfAbsent(segment, k -> new TrieNode());
+            }
+        }
+        current.setMethod(method);
+    }
+
+
+    public MatchResult search(String path){
+        String[] segments = path.split("/");
+        TrieNode current = root;
+        Map<String, String> pathVariables = new HashMap<>();
+
+        for(String segment: segments){
+            if(segment.isEmpty()) continue;
+
+            TrieNode next = current.getChildren().get(segment);
+            if(next != null){
+                current = next;
+            }
+            else if(current.getWildcardChild() != null){
+                String varName = current.getVariableName();
+                pathVariables.put(varName, segment);
+                current = current.getWildcardChild();
+            } else{
+                return null;
+            }
+        }
+        if(current.getMethod() == null){
+            return null;
+        }
+
+        return new MatchResult(current.getMethod(), pathVariables);
+    }
+
     private void processMethods(Class<?> clas){
         for(Method method : clas.getDeclaredMethods()){
             if(method.isAnnotationPresent(GetMapping.class)){
                 GetMapping mapping = method.getAnnotation(GetMapping.class);
                 String url = mapping.value();
-                routeMap.put(url ,method);
+                insert(url, method);
+                System.out.println("Mapped URL [" + url + "] to method [" + method.getName() + "]");
+            } else if(method.isAnnotationPresent(PostMapping.class)){
+                PostMapping mapping = method.getAnnotation(PostMapping.class);
+                String url = mapping.value();
+                insert(url, method);
                 System.out.println("Mapped URL [" + url + "] to method [" + method.getName() + "]");
             }
         }

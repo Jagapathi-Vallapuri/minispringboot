@@ -1,7 +1,12 @@
 package com.mini.springboot.framework.server;
 
+import com.mini.springboot.framework.annotations.PathVariable;
+import com.mini.springboot.framework.annotations.RequestBody;
 import com.mini.springboot.framework.annotations.RequestParam;
 import com.mini.springboot.framework.context.ApplicationContext;
+import com.mini.springboot.framework.utils.JsonParser;
+import com.mini.springboot.framework.utils.MatchResult;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -39,6 +44,12 @@ public class WebServer {
         this.context = context;
     }
 
+    private String readRequestBody(HttpExchange exchange) throws IOException{
+        try(InputStream is  = exchange.getRequestBody()){
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
     public void start() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -65,20 +76,35 @@ public class WebServer {
 
             System.out.println("Received Request for: " + path);
 
-            Method targetMethod = context.getMethodForRoute(path);
+            Method targetMethod = context.getMethodForRoute(path).getMethod();
+            MatchResult match = context.getMethodForRoute(path);
 
             if(targetMethod != null){
                 try{
                     Parameter[] parameters = targetMethod.getParameters();
                     Object[] args = new Object[parameters.length];
+
+                    String body = readRequestBody(exchange);
+                    Map<String, String> pathVars = match.getVariables();
                     Map<String, String> queryParams = parseQueryParams(exchange.getRequestURI().getQuery());
-                    for(int i = 0; i < parameters.length; i++){
-                        if(parameters[i].isAnnotationPresent(RequestParam.class)){
+
+                    for (int i = 0; i < parameters.length; i++) {
+                        if (parameters[i].isAnnotationPresent(RequestBody.class)) {
+                            Class<?> paramType = parameters[i].getType();
+                            if (Map.class.isAssignableFrom(paramType)) {
+                                args[i] = JsonParser.parse(body);
+                            } else {
+                                args[i] = body;
+                            }
+                            continue;
+                        }
+                        else if (parameters[i].isAnnotationPresent(RequestParam.class)) {
                             RequestParam ann = parameters[i].getAnnotation(RequestParam.class);
-                            String key = ann.value();
-                            args[i] = queryParams.get(key);
-                        } else{
-                            args[i] = null;
+                            args[i] = queryParams.get(ann.value());
+                        }
+                        else if (parameters[i].isAnnotationPresent(PathVariable.class)) {
+                            PathVariable pv = parameters[i].getAnnotation(PathVariable.class);
+                            args[i] = pathVars.get(pv.value());
                         }
                     }
                     Object controller = context.getBeanInstance(targetMethod.getDeclaringClass());
