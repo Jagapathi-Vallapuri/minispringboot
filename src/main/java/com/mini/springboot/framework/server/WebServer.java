@@ -96,7 +96,6 @@ public class WebServer {
                             } else {
                                 args[i] = body;
                             }
-                            continue;
                         }
                         else if (parameters[i].isAnnotationPresent(RequestParam.class)) {
                             RequestParam ann = parameters[i].getAnnotation(RequestParam.class);
