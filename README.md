@@ -1,54 +1,52 @@
 # MiniSpringBoot
 
-MiniSpringBoot is a learning project that currently contains two tracks:
+MiniSpringBoot is a learning project with two runtime tracks:
 
-1. A standard Spring Boot application entrypoint (`MinispringbootApplication`).
-2. A custom lightweight web framework prototype built on JDK `HttpServer` with annotation-driven routing and basic dependency injection.
+1. A regular Spring Boot application entrypoint.
+2. A custom lightweight HTTP framework built on JDK `HttpServer`.
 
 ## Current Status
 
-This repository is in active prototype state.
+The project is in prototype mode and actively evolving.
 
-- Spring Boot context test passes.
-- Custom framework now supports:
-  - `@RestController` and `@Service` bean discovery
-  - field injection with `@Autowired`
-  - `@GetMapping` and `@PostMapping` route registration
-  - path variables (`/greet/{name}`), query params, and request body binding
-- Custom launcher still needs a Java-compatible `main` signature before it can be started directly.
+- Spring Boot test context loads successfully.
+- Custom framework currently supports:
+  - component scanning for `@RestController` and `@Service`
+  - field injection via `@Autowired`
+  - route registration with `@GetMapping` and `@PostMapping`
+  - verb-aware route lookup (`path + HTTP method`)
+  - path variable, query param, and request body argument binding
+  - simple JSON body parsing into `Map`
+- Custom framework launcher still needs a valid Java entrypoint signature.
 
 ## Tech Stack
 
 - Java 25
 - Maven Wrapper (`./mvnw`)
 - Spring Boot 4.0.5
-- JUnit 5 (through `spring-boot-starter-test`)
+- JUnit 5 (`spring-boot-starter-test`)
 
-## Project Layout
+## Project Structure
 
 - `src/main/java/com/mini/springboot/MinispringbootApplication.java`
   - Standard Spring Boot entrypoint.
 - `src/main/java/com/mini/springboot/app/Main.java`
-  - Intended launcher for the custom framework server.
+  - Intended launcher for the custom framework.
 - `src/main/java/com/mini/springboot/app/HelloController.java`
-  - Demo controller with GET/POST, path variables, query param, and request body examples.
-- `src/main/java/com/mini/springboot/app/GreetingService.java`
-  - Demo service bean for DI.
-- `src/main/java/com/mini/springboot/framework/annotations`
-  - Custom annotations (`@RestController`, `@Service`, `@Autowired`, `@GetMapping`, `@PostMapping`, `@PathVariable`, `@RequestParam`, `@RequestBody`).
+  - Sample controller demonstrating routing and parameter binding.
 - `src/main/java/com/mini/springboot/framework/context`
-  - Bean scanning, bean creation, field injection, and route trie setup.
+  - Bean scanning, registration, DI wiring, request context.
 - `src/main/java/com/mini/springboot/framework/server/WebServer.java`
-  - HTTP server and reflection-based handler invocation.
+  - HTTP request handling and method invocation.
+- `src/main/java/com/mini/springboot/framework/resolvers`
+  - Pluggable argument resolvers (`@RequestParam`, `@PathVariable`, `@RequestBody`).
 - `src/main/java/com/mini/springboot/framework/utils`
-  - Trie and matching objects plus a simple JSON parser.
-- `src/test/java/com/mini/springboot/MinispringbootApplicationTests.java`
-  - Spring Boot context-load test.
+  - Trie-based route storage and helper utilities.
 
 ## Prerequisites
 
-- JDK 25 installed and available on `PATH`
-- Linux/macOS: executable bit on wrapper if needed (`chmod +x mvnw`)
+- JDK 25 available on `PATH`
+- Linux/macOS: `chmod +x mvnw` if wrapper is not executable
 
 ## Build And Test
 
@@ -56,62 +54,42 @@ This repository is in active prototype state.
 ./mvnw clean test
 ```
 
-Expected outcome:
-- Test suite passes.
-- Spring Boot application context starts successfully.
+Last validated: April 7, 2026.
 
-## Run Spring Boot Entrypoint
+## Run Spring Boot App
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-This starts `com.mini.springboot.MinispringbootApplication`.
+## Run Custom Framework
 
-## Run Custom Framework Entrypoint
-
-The custom server is wired in `com.mini.springboot.app.Main`, but the method signature is currently:
+`com.mini.springboot.app.Main` currently declares:
 
 ```java
 static void main()
 ```
 
-That is not a valid Java launcher entrypoint. Change it to:
+To make it launchable by Java tooling, change it to:
 
 ```java
 public static void main(String[] args)
 ```
 
-After that, the custom framework can be launched with a normal Java run configuration.
+Then run with your IDE run configuration or standard Java launch command.
 
 ## Demo Endpoints (Custom Framework)
-
-Once the custom launcher is fixed and running on `:8080`, the demo controller maps:
 
 - `GET /hello`
 - `GET /greet`
 - `GET /greetMe?name=Mini`
 - `GET /greet/{name}`
-- `POST /test` with JSON body
+- `POST /test`
 
-Example request:
+Example:
 
 ```bash
 curl -X POST "http://localhost:8080/test" \
   -H "Content-Type: application/json" \
   -d '{"name":"book","price":100,"is":true,"d":4.5}'
 ```
-
-## Suggested Next Steps
-
-1. Fix launcher signature in `app/Main`.
-2. In `WebServer`, perform route null check once before calling `.getMethod()`.
-3. Add HTTP method-aware routing (or store method + path together).
-4. Add integration tests for custom endpoints (`/hello`, `/greetMe`, `/greet/{name}`, `/test`).
-5. Remove dead code and unused APIs/classes.
-
-## License
-
-No `LICENSE` file is currently present.
-Add one before public distribution.
-

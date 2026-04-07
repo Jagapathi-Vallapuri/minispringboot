@@ -5,8 +5,7 @@ import com.mini.springboot.framework.annotations.Service;
 
 @Service
 public class GreetingService {
-    @Autowired
-    private HelloController controller;
+
     public String getGreeting(){
         return "Hello from service";
     }

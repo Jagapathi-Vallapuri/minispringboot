@@ -21,8 +21,8 @@ public class ApplicationContext {
     public void init(String packageName){
 
     }
-    public MatchResult getMethodForRoute(String path){
-        return search(path);
+    public MatchResult getMethodForRoute(String path, String verb){
+        return search(path, verb);
     }
 
     public Object getBeanInstance(Class<?> clas){
@@ -72,7 +72,8 @@ public class ApplicationContext {
         }
     }
 
-    public void insert(String path, Method method){
+    public void insert(String path, String verb, Method method){
+        if (path.endsWith("/") && path.length() > 1) path = path.substring(0, path.length() - 1);
         String[] segments = path.split("/");
         TrieNode current = root;
 
@@ -90,11 +91,14 @@ public class ApplicationContext {
                         .computeIfAbsent(segment, k -> new TrieNode());
             }
         }
-        current.setMethod(method);
+        current.setMethod(verb, method);
     }
 
 
-    public MatchResult search(String path){
+    public MatchResult search(String path, String verb){
+        if(path.endsWith("/") && path.length() > 1){
+            path = path.substring(0, path.length()-1);
+        }
         String[] segments = path.split("/");
         TrieNode current = root;
         Map<String, String> pathVariables = new HashMap<>();
@@ -114,11 +118,11 @@ public class ApplicationContext {
                 return null;
             }
         }
-        if(current.getMethod() == null){
+        if(current.getMethod(verb) == null){
             return null;
         }
 
-        return new MatchResult(current.getMethod(), pathVariables);
+        return new MatchResult(current.getMethod(verb), pathVariables);
     }
 
     private void processMethods(Class<?> clas){
@@ -126,13 +130,23 @@ public class ApplicationContext {
             if(method.isAnnotationPresent(GetMapping.class)){
                 GetMapping mapping = method.getAnnotation(GetMapping.class);
                 String url = mapping.value();
-                insert(url, method);
-                System.out.println("Mapped URL [" + url + "] to method [" + method.getName() + "]");
+                insert(url, "GET", method);
+                System.out.println("Mapped GET URL [" + url + "] to method [" + method.getName() + "]");
             } else if(method.isAnnotationPresent(PostMapping.class)){
                 PostMapping mapping = method.getAnnotation(PostMapping.class);
                 String url = mapping.value();
-                insert(url, method);
-                System.out.println("Mapped URL [" + url + "] to method [" + method.getName() + "]");
+                insert(url, "POST", method);
+                System.out.println("Mapped POST URL [" + url + "] to method [" + method.getName() + "]");
+            } else if(method.isAnnotationPresent(PutMapping.class)){
+                PutMapping mapping = method.getAnnotation(PutMapping.class);
+                String url = mapping.value();
+                insert(url, "PUT", method);
+                System.out.println("Mapped PUT URL [" + url + "] to method [" + method.getName() + "]");
+            } else if(method.isAnnotationPresent(DeleteMapping.class)){
+                DeleteMapping mapping = method.getAnnotation(DeleteMapping.class);
+                String url = mapping.value();
+                insert(url, "DELETE", method);
+                System.out.println("Mapped DELETE URL [" + url + "] to method [" + method.getName() + "]");
             }
         }
     }

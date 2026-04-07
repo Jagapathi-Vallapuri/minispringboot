@@ -1,10 +1,11 @@
 package com.mini.springboot.framework.server;
 
-import com.mini.springboot.framework.annotations.PathVariable;
-import com.mini.springboot.framework.annotations.RequestBody;
-import com.mini.springboot.framework.annotations.RequestParam;
 import com.mini.springboot.framework.context.ApplicationContext;
-import com.mini.springboot.framework.utils.JsonParser;
+import com.mini.springboot.framework.context.RequestContext;
+import com.mini.springboot.framework.resolvers.ArgumentResolver;
+import com.mini.springboot.framework.resolvers.PathParamResolver;
+import com.mini.springboot.framework.resolvers.QueryParamResolver;
+import com.mini.springboot.framework.resolvers.RequestBodyResolver;
 import com.mini.springboot.framework.utils.MatchResult;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -14,30 +15,20 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 public class WebServer {
     private final int port;
     private final ApplicationContext context;
+    private final List<ArgumentResolver> resolvers = List.of(
+            new QueryParamResolver(),
+            new PathParamResolver(),
+            new RequestBodyResolver()
+    );
 
 
-    private Map<String, String> parseQueryParams(String query){
-        Map<String, String> queryParams = new HashMap<>();
-        if(query == null || query.isEmpty()) return queryParams;
 
-        String[] pairs = query.split("&");
-        for(String pair : pairs){
-            String[] keyValue = pair.split("=");
-            if(keyValue.length == 2){
-                String decoded  = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
-                queryParams.put(keyValue[0], decoded);
-            }
-        }
-        return queryParams;
-    }
 
     public WebServer(int port, ApplicationContext context){
         this.port = port;
@@ -55,6 +46,7 @@ public class WebServer {
 
         server.createContext("/", exchange -> {
             String path = exchange.getRequestURI().getPath();
+            String verb = exchange.getRequestMethod();
 
             if(path.equals("/favicon.ico")){
                 try(InputStream is = getClass().getResourceAsStream("/favicon.ico")){
@@ -76,41 +68,44 @@ public class WebServer {
 
             System.out.println("Received Request for: " + path);
 
-            Method targetMethod = context.getMethodForRoute(path).getMethod();
-            MatchResult match = context.getMethodForRoute(path);
+            MatchResult matchResult = context.getMethodForRoute(path, verb);
+
+            if(matchResult == null){
+                String notFound = "404 Not Found - No route mapped for " + path;
+                exchange.sendResponseHeaders(404, notFound.length());
+                exchange.getResponseBody().write(notFound.getBytes());
+                exchange.getResponseBody().close();
+                return;
+            }
+            Method targetMethod = matchResult.getMethod();
 
             if(targetMethod != null){
                 try{
+                    String body = "";
+                    if(!verb.equalsIgnoreCase("GET")){
+                        body = readRequestBody(exchange);
+                    }
+
+                    RequestContext requestContext = new RequestContext(exchange, matchResult, body);
                     Parameter[] parameters = targetMethod.getParameters();
                     Object[] args = new Object[parameters.length];
 
-                    String body = readRequestBody(exchange);
-                    Map<String, String> pathVars = match.getVariables();
-                    Map<String, String> queryParams = parseQueryParams(exchange.getRequestURI().getQuery());
-
                     for (int i = 0; i < parameters.length; i++) {
-                        if (parameters[i].isAnnotationPresent(RequestBody.class)) {
-                            Class<?> paramType = parameters[i].getType();
-                            if (Map.class.isAssignableFrom(paramType)) {
-                                args[i] = JsonParser.parse(body);
-                            } else {
-                                args[i] = body;
+                        Parameter param = parameters[i];
+                        for(ArgumentResolver resolver : resolvers){
+                            if(resolver.supports(param)){
+                                args[i] = resolver.resolve(param, requestContext);
+                                break;
                             }
-                        }
-                        else if (parameters[i].isAnnotationPresent(RequestParam.class)) {
-                            RequestParam ann = parameters[i].getAnnotation(RequestParam.class);
-                            args[i] = queryParams.get(ann.value());
-                        }
-                        else if (parameters[i].isAnnotationPresent(PathVariable.class)) {
-                            PathVariable pv = parameters[i].getAnnotation(PathVariable.class);
-                            args[i] = pathVars.get(pv.value());
                         }
                     }
                     Object controller = context.getBeanInstance(targetMethod.getDeclaringClass());
                     String res = (String) targetMethod.invoke(controller, args);
 
-                    exchange.sendResponseHeaders(200, res.length());
-                    exchange.getResponseBody().write(res.getBytes());
+                    byte[] responseBytes = res.getBytes(StandardCharsets.UTF_8);
+
+                    exchange.sendResponseHeaders(200, responseBytes.length);
+                    exchange.getResponseBody().write(responseBytes);
                 }catch (Exception e){
                     String error = "500 Internal Server Error: " + e.getMessage();
                     exchange.sendResponseHeaders(500 ,error.length());

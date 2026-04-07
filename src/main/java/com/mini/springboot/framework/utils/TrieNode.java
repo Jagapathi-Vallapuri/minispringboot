@@ -9,14 +9,15 @@ public class TrieNode {
 
     private TrieNode wildcardChild = null;
     private String variableName = null;
-    private Method method;
 
-    public void setMethod(Method method){
-        this.method = method;
+    private final Map<String, Method> methodMap = new HashMap<>();
+
+    public void setMethod(String verb, Method method){
+        this.methodMap.put(verb.toUpperCase(), method) ;
     }
 
-    public Method getMethod(){
-        return method;
+    public Method getMethod(String verb){
+        return this.methodMap.get(verb.toUpperCase());
     }
 
     public Map<String, TrieNode> getChildren(){
